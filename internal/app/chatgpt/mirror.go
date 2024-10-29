@@ -1,9 +1,8 @@
 package chatgpt
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"github.com/andybalholm/brotli"
+	"github.com/dhbin/ai-connect/internal/common/code"
 	"github.com/dhbin/ai-connect/internal/config"
 	"github.com/dhbin/ai-connect/templates"
 	"github.com/labstack/echo/v4"
@@ -11,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -185,7 +183,17 @@ func RunMirror() {
 			return err
 		}
 
-		defer resp.Body.Close()
+		contentEncoding := resp.Header.Get("Content-Encoding")
+		reader, err := code.WarpReader(resp.Body, contentEncoding)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		writer, err := code.WarpWriter(c.Response(), contentEncoding)
+		if err != nil {
+			return err
+		}
+		defer writer.Close()
 
 		c.Response().Header().Set("Content-Encoding", resp.Header.Get("Content-Encoding"))
 		c.Response().Header().Set("Content-Type", resp.Header.Get("Content-Type"))
@@ -195,15 +203,14 @@ func RunMirror() {
 		if u.Path == "/backend-api/conversation" {
 			bs := make([]byte, 1)
 			for {
-				n, err := resp.Body.Read(bs)
+				n, err := reader.Read(bs)
 				if err != nil && err != io.EOF {
-					log.Println("read response body error: ", err)
-					return nil
+					return err
 				}
 				if n == 0 {
 					break
 				}
-				_, _ = c.Response().Write(bs)
+				_, _ = writer.Write(bs)
 				c.Response().Flush()
 			}
 			return nil
@@ -212,22 +219,7 @@ func RunMirror() {
 		// 设置响应状态码
 		c.Response().WriteHeader(resp.StatusCode)
 
-		if strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me" {
-			// 读取响应内容，处理可能的压缩
-			var reader io.ReadCloser
-			contentEncoding := resp.Header.Get("Content-Encoding")
-			switch contentEncoding {
-			case "gzip":
-				reader, err = gzip.NewReader(resp.Body)
-				if err != nil {
-					return err
-				}
-				defer reader.Close()
-			case "br":
-				reader = io.NopCloser(brotli.NewReader(resp.Body))
-			default:
-				reader = resp.Body
-			}
+		if (strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me") && resp.StatusCode < 300 {
 			bs, err := io.ReadAll(reader)
 			if err != nil {
 				return err
@@ -242,7 +234,7 @@ func RunMirror() {
 					meJson.Email = "sam@openai.com"
 					meJson.PhoneNumber = nil
 					meJson.Name = "Sam Altman"
-					for i, _ := range meJson.Orgs.Data {
+					for i := range meJson.Orgs.Data {
 						meJson.Orgs.Data[i].Description = "Personal org for " + meJson.Email
 					}
 
@@ -258,19 +250,7 @@ func RunMirror() {
 				body = strings.ReplaceAll(body, `if(s)return o.apply(this,arguments)`, `if(arguments[0] && typeof arguments[0] === 'string'){arguments[0] = arguments[0].replace('chatgpt.com', location.host).replace('ab.chatgpt.com', location.host + '/ab').replace('cdn.oaistatic.com', location.host)};if(s)return o.apply(this,arguments)`)
 			}
 
-			switch contentEncoding {
-			case "gzip":
-				// 把body压缩gzip写到res
-				gz := gzip.NewWriter(c.Response())
-				defer gz.Close()
-				_, err = gz.Write([]byte(body))
-			case "br":
-				brW := brotli.NewWriter(c.Response())
-				defer brW.Close()
-				_, err = brW.Write([]byte(body))
-			default:
-				_, err = c.Response().Write([]byte(body))
-			}
+			_, err = writer.Write([]byte(body))
 			return err
 		}
 
