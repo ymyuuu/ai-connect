@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/andybalholm/brotli"
 	"github.com/dhbin/ai-connect/internal/config"
+	"github.com/dhbin/ai-connect/templates"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/spf13/cobra"
@@ -102,35 +103,26 @@ var ignoreHeadersMap = map[string]interface{}{
 	"origin":                        nil,
 }
 
-type Template struct {
-	templates *template.Template
-}
-
-func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
-	return t.templates.ExecuteTemplate(w, name, data)
-}
-
 func RunMirror() {
 	mirrorConfig := config.ChatGptMirror()
 	tls := mirrorConfig.Tls
-	tokens := mirrorConfig.Tokens
 
 	proxyClient := http.Client{}
 
 	e := echo.New()
 
 	// 创建并加载模板
-	tmpl := &Template{
-		templates: template.Must(template.ParseGlob("templates/chatgpt/*.html")),
+	tmpl := &templates.Template{
+		Templates: template.Must(template.ParseFS(templates.TemplateFs, "chatgpt/*.html")),
 	}
 	e.Renderer = tmpl
 
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
 
-	e.GET("/", HandleIndex)
-	e.GET("/c/*", HandleIndex)
-	e.GET("/g/*", HandleIndex)
+	e.GET("/", handleIndex)
+	e.GET("/c/*", handleIndex)
+	e.GET("/g/*", handleIndex)
 	e.Any("/*", func(c echo.Context) error {
 
 		u := buildUrl(c)
@@ -184,7 +176,7 @@ func RunMirror() {
 			token, err := c.Cookie("token")
 
 			if err == nil && token.Value != "" {
-				req.Header.Set("Authorization", "Bearer "+tokens[token.Value])
+				req.Header.Set("Authorization", "Bearer "+dealToken(token.Value))
 			}
 		}
 
@@ -321,7 +313,14 @@ func contains(header string) bool {
 	return exists
 }
 
-func HandleIndex(c echo.Context) error {
+func dealToken(token string) string {
+	if strings.HasPrefix(token, "eyJhbGci") {
+		return token
+	}
+	return config.ChatGptMirror().Tokens[token]
+}
+
+func handleIndex(c echo.Context) error {
 	token := "announce"
 	t := c.QueryParam("token")
 	if t != "" {
