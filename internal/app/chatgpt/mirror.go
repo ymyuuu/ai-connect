@@ -2,6 +2,7 @@ package chatgpt
 
 import (
 	"encoding/json"
+	"github.com/dhbin/ai-connect/internal/common"
 	"github.com/dhbin/ai-connect/internal/common/code"
 	"github.com/dhbin/ai-connect/internal/config"
 	"github.com/dhbin/ai-connect/templates"
@@ -113,12 +114,12 @@ func RunMirror() {
 		if err != nil {
 			return err
 		}
-		defer reader.Close()
+		defer common.IgnoreErr(reader.Close())
 		writer, err := code.WarpWriter(c.Response(), contentEncoding)
 		if err != nil {
 			return err
 		}
-		defer writer.Close()
+		defer common.IgnoreErr(writer.Close())
 
 		c.Response().Header().Set("Content-Encoding", resp.Header.Get("Content-Encoding"))
 		c.Response().Header().Set("Content-Type", resp.Header.Get("Content-Type"))
