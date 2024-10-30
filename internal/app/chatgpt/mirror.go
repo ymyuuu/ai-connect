@@ -109,10 +109,10 @@ func RunMirror() {
 		}
 		defer common.IgnoreErr(writer.Close)
 
-		c.Response().Header().Set("Content-Encoding", resp.Header.Get("Content-Encoding"))
-		c.Response().Header().Set("Content-Type", resp.Header.Get("Content-Type"))
-		c.Response().Header().Set("Cache-Control", resp.Header.Get("Cache-Control"))
-		c.Response().Header().Set("Expires", resp.Header.Get("Expires"))
+		setIfNotEmpty(c.Response().Header(), resp.Header, "Content-Encoding")
+		setIfNotEmpty(c.Response().Header(), resp.Header, "Content-Type")
+		setIfNotEmpty(c.Response().Header(), resp.Header, "Cache-Control")
+		setIfNotEmpty(c.Response().Header(), resp.Header, "Expires")
 
 		if u.Path == "/backend-api/conversation" {
 			bs := make([]byte, 1)
@@ -233,6 +233,13 @@ func needAuth(path string) bool {
 
 func bodyNeedHandle(u *url.URL) bool {
 	return strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me"
+}
+
+func setIfNotEmpty(target, header http.Header, key string) {
+	v := header.Get(key)
+	if v != "" {
+		target.Set(key, v)
+	}
 }
 
 func handleIndex(c echo.Context) error {
