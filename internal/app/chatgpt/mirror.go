@@ -98,16 +98,6 @@ func RunMirror() {
 		}
 
 		contentEncoding := resp.Header.Get("Content-Encoding")
-		reader, err := code.WarpReader(resp.Body, contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(reader.Close)
-		writer, err := code.WarpWriter(c.Response(), contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(writer.Close)
 
 		setIfNotEmpty(c.Response().Header(), resp.Header, "Content-Encoding")
 		setIfNotEmpty(c.Response().Header(), resp.Header, "Content-Type")
@@ -115,6 +105,16 @@ func RunMirror() {
 		setIfNotEmpty(c.Response().Header(), resp.Header, "Expires")
 
 		if u.Path == "/backend-api/conversation" {
+			reader, err := code.WarpReader(resp.Body, contentEncoding)
+			if err != nil {
+				return err
+			}
+			defer common.IgnoreErr(reader.Close)
+			writer, err := code.WarpWriter(c.Response(), contentEncoding)
+			if err != nil {
+				return err
+			}
+			defer common.IgnoreErr(writer.Close)
 			bs := make([]byte, 1)
 			for {
 				n, err := reader.Read(bs)
@@ -134,6 +134,16 @@ func RunMirror() {
 		c.Response().WriteHeader(resp.StatusCode)
 
 		if bodyNeedHandle(u) && resp.StatusCode < http.StatusMultipleChoices {
+			reader, err := code.WarpReader(resp.Body, contentEncoding)
+			if err != nil {
+				return err
+			}
+			defer common.IgnoreErr(reader.Close)
+			writer, err := code.WarpWriter(c.Response(), contentEncoding)
+			if err != nil {
+				return err
+			}
+			defer common.IgnoreErr(writer.Close)
 			bs, err := io.ReadAll(reader)
 			if err != nil {
 				return err
