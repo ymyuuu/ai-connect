@@ -2,6 +2,8 @@ package common
 
 import "log"
 
-func IgnoreErr(err error) {
-	log.Printf("err: %v", err)
+func IgnoreErr(f func() error) {
+	if err := f(); err != nil {
+		log.Println("Error:", err)
+	}
 }

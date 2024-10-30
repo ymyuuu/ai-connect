@@ -46,30 +46,18 @@ func RunMirror() {
 	e.Any("/*", func(c echo.Context) error {
 
 		u := buildUrl(c)
-		sc := u.Scheme
+		sourceHost := u.Host
+		sourceScheme := u.Scheme
+		sourceUrl := u.String()
 
 		if strings.HasSuffix(u.Path, ".map") {
 			return c.NoContent(http.StatusNotFound)
 		}
 
 		// 构建目标url
-		sourceUrl := u.String()
-		targetUrl, _ := url.Parse(sourceUrl)
-		// 判断url前缀是否/static，是的话替换host为cdn.oaistatic.com
-		if strings.HasPrefix(targetUrl.Path, "/assets") {
-			targetUrl.Host = "cdn.oaistatic.com"
-		} else if strings.HasPrefix(targetUrl.Path, "/ab") {
-			// 判断url前缀是否/ab，是的话替换host为ab.chatgpt.com
-			targetUrl.Host = "ab.chatgpt.com"
-			// 去除前缀
-			targetUrl.Path = strings.TrimPrefix(targetUrl.Path, "/ab")
-		} else {
-			// 其他情况，替换host为chatgpt.com
-			targetUrl.Host = "chatgpt.com"
-		}
+		targetUrl := buildTargetUrl(sourceUrl)
 
 		// 构建目标headers
-		sourceHost := u.Host
 		targetHeaders := make(http.Header)
 		for k, v := range c.Request().Header {
 			if filterHeader(k) {
@@ -96,7 +84,7 @@ func RunMirror() {
 			return err
 		}
 		req.Header = targetHeaders
-		if !strings.HasSuffix(u.Path, ".js") && !strings.HasSuffix(u.Path, ".css") && !strings.HasSuffix(u.Path, ".webp") {
+		if needAuth(u.Path) {
 			token, err := c.Cookie("token")
 
 			if err == nil && token.Value != "" {
@@ -114,12 +102,12 @@ func RunMirror() {
 		if err != nil {
 			return err
 		}
-		defer common.IgnoreErr(reader.Close())
+		defer common.IgnoreErr(reader.Close)
 		writer, err := code.WarpWriter(c.Response(), contentEncoding)
 		if err != nil {
 			return err
 		}
-		defer common.IgnoreErr(writer.Close())
+		defer common.IgnoreErr(writer.Close)
 
 		c.Response().Header().Set("Content-Encoding", resp.Header.Get("Content-Encoding"))
 		c.Response().Header().Set("Content-Type", resp.Header.Get("Content-Type"))
@@ -145,7 +133,7 @@ func RunMirror() {
 		// 设置响应状态码
 		c.Response().WriteHeader(resp.StatusCode)
 
-		if (strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me") && resp.StatusCode < 300 {
+		if bodyNeedHandle(u) && resp.StatusCode < http.StatusMultipleChoices {
 			bs, err := io.ReadAll(reader)
 			if err != nil {
 				return err
@@ -170,9 +158,9 @@ func RunMirror() {
 					}
 				}
 			} else {
-				body = strings.ReplaceAll(body, "https://chatgpt.com", sc+"://"+sourceHost)
-				body = strings.ReplaceAll(body, "https://ab.chatgpt.com", sc+"://"+sourceHost+"/ab")
-				body = strings.ReplaceAll(body, "https://cdn.oaistatic.com", sc+"://"+sourceHost)
+				body = strings.ReplaceAll(body, "https://chatgpt.com", sourceScheme+"://"+sourceHost)
+				body = strings.ReplaceAll(body, "https://ab.chatgpt.com", sourceScheme+"://"+sourceHost+"/ab")
+				body = strings.ReplaceAll(body, "https://cdn.oaistatic.com", sourceScheme+"://"+sourceHost)
 				body = strings.ReplaceAll(body, "chatgpt.com", sourceHost)
 			}
 
@@ -193,6 +181,23 @@ func RunMirror() {
 		cobra.CheckErr(err)
 
 	}
+}
+
+func buildTargetUrl(sourceUrl string) *url.URL {
+	targetUrl, _ := url.Parse(sourceUrl)
+	// 判断url前缀是否/static，是的话替换host为cdn.oaistatic.com
+	if strings.HasPrefix(targetUrl.Path, "/assets") {
+		targetUrl.Host = "cdn.oaistatic.com"
+	} else if strings.HasPrefix(targetUrl.Path, "/ab") {
+		// 判断url前缀是否/ab，是的话替换host为ab.chatgpt.com
+		targetUrl.Host = "ab.chatgpt.com"
+		// 去除前缀
+		targetUrl.Path = strings.TrimPrefix(targetUrl.Path, "/ab")
+	} else {
+		// 其他情况，替换host为chatgpt.com
+		targetUrl.Host = "chatgpt.com"
+	}
+	return targetUrl
 }
 
 func buildUrl(c echo.Context) *url.URL {
@@ -219,6 +224,15 @@ func dealToken(token string) string {
 		return token
 	}
 	return config.ChatGptMirror().Tokens[token]
+}
+
+func needAuth(path string) bool {
+	return !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".css") && !strings.HasSuffix(path, ".webp")
+
+}
+
+func bodyNeedHandle(u *url.URL) bool {
+	return strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me"
 }
 
 func handleIndex(c echo.Context) error {
