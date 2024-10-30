@@ -1,0 +1,15 @@
+{
+  "chatgpt": {
+    "mirror": {
+      "address": ":443",
+      "tls": {
+        "enabled": true,
+        "key": "./tls/key.pem",
+        "cert": "./tls/cert.pem"
+      },
+      "tokens": {
+        "token": "eyJhbGciOi"
+      }
+    }
+  }
+}
