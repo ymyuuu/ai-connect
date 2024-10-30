@@ -31,5 +31,5 @@ cp example.json config.json
 ai-connect chatgpt --mirror
 ```
 
-上面的配置文件的tokens参数是token映射，比如访问https://oai.253282.xyz?token=9090，会取映射的accessToken，如果
+上面的配置文件的tokens参数是token映射，比如访问https://oai.253282.xyz?token=9090 ，会取映射的accessToken，如果
 token参数是`eyJhbGciOi`认为是chatgpt的accessToken直接使用
