@@ -109,12 +109,13 @@ gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
 
 $(gz_releases): %.gz : %
-	cp example.json $(BINDIR)/config.json
+	cp example.json $(BINDIR)/example.json
 	chmod +x $(BINDIR)/$(NAME)-$(basename $@)
-	tar --transform 's/$(NAME)-$(basename $@)/$(NAME)/' -czf $(BINDIR)/$(NAME)-$(basename $@)-$(VERSION).tar.gz -C $(BINDIR) $(NAME)-$(basename $@) config.json
+	tar --transform 's/$(NAME)-$(basename $@)/$(NAME)/' -czf $(BINDIR)/$(NAME)-$(basename $@)-$(VERSION).tar.gz -C $(BINDIR) $(NAME)-$(basename $@) example.json
 
 $(zip_releases): %.zip : %
-	zip -m -j $(BINDIR)/$(NAME)-$(basename $@)-$(VERSION).zip $(BINDIR)/$(NAME)-$(basename $@).exe $(BINDIR)/config.json
+	cp example.json $(BINDIR)/example.json
+	zip -m -j $(BINDIR)/$(NAME)-$(basename $@)-$(VERSION).zip $(BINDIR)/$(NAME)-$(basename $@).exe $(BINDIR)/example.json
 
 all-arch: $(PLATFORM_LIST) $(WINDOWS_ARCH_LIST)
 
