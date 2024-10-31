@@ -56,6 +56,7 @@ func RunMirror() {
 
 		// 构建目标url
 		targetUrl := buildTargetUrl(sourceUrl)
+		targetUrl.Scheme = "https"
 
 		// 构建目标headers
 		targetHeaders := make(http.Header)
@@ -213,11 +214,16 @@ func buildTargetUrl(sourceUrl string) *url.URL {
 func buildUrl(c echo.Context) *url.URL {
 	u := c.Request().URL
 	// Populate missing fields
-	if u.Scheme == "" {
-		if c.Request().TLS == nil {
-			u.Scheme = "http"
-		} else {
-			u.Scheme = "https"
+	xForwardProto := c.Request().Header.Get("x-forwarded-proto")
+	if xForwardProto != "" {
+		u.Scheme = xForwardProto
+	} else {
+		if u.Scheme == "" {
+			if c.Request().TLS == nil {
+				u.Scheme = "http"
+			} else {
+				u.Scheme = "https"
+			}
 		}
 	}
 	if u.Host == "" {
