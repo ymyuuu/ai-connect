@@ -1,0 +1,44 @@
+{
+  "session": {
+    "user": {
+      "id": "user-sam",
+      "name": "admin@openai.com",
+      "email": "admin@openai.com",
+      "image": "https://s.gravatar.com/avatar/747b790c789aff02e026879944cc69ee?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fbi.png",
+      "picture": "https://s.gravatar.com/avatar/747b790c789aff02e026879944cc69ee?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fbi.png",
+      "idp": "auth0",
+      "iat": 1729969340,
+      "mfa": false,
+      "groups": [],
+      "intercom_hash": "f4055e7d7eebddefd7625874a71899763ff284e9deff14c691e81832c1fc3c7c"
+    },
+    "expires": "2025-01-29T14:17:29.539Z",
+    "accessToken": "token",
+    "authProvider": "login-web"
+  },
+  "user": {
+    "id": "user-sam",
+    "name": "admin@openai.com",
+    "email": "admin@openai.com",
+    "image": "https://s.gravatar.com/avatar/747b790c789aff02e026879944cc69ee?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fbi.png",
+    "picture": "https://s.gravatar.com/avatar/747b790c789aff02e026879944cc69ee?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fbi.png",
+    "idp": "auth0",
+    "iat": 1729969340,
+    "mfa": false,
+    "groups": [],
+    "intercom_hash": "f4055e7d7eebddefd7625874a71899763ff284e9deff14c691e81832c1fc3c7c"
+  },
+  "cluster": "unified-16",
+  "userCountry": "GB",
+  "userRegion": "England",
+  "userRegionCode": "ENG",
+  "cfConnectingIp": "1.1.1.1",
+  "cfIpLatitude": "51.50050",
+  "cfIpLongitude": "-0.19050",
+  "cfIpCity": "Kensington",
+  "cfTimezone": "Europe/London",
+  "userLocale": "zh-CN",
+  "authStatus": "logged_in",
+  "accountsStatus": null,
+  "kind": "chat_page"
+}

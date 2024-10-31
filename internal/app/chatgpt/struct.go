@@ -1,6 +1,12 @@
 package chatgpt
 
-import "strings"
+import (
+	"encoding/json"
+	"github.com/dhbin/ai-connect/templates"
+	"github.com/spf13/cobra"
+	"io"
+	"strings"
+)
 
 type me struct {
 	Amr                      []interface{} `json:"amr"`
@@ -44,6 +50,11 @@ type me struct {
 	Picture     string      `json:"picture"`
 }
 
+type checkGpts struct {
+	Kind     string `json:"kind"`
+	Referrer string `json:"referrer"`
+}
+
 var ignoreHeadersMap = map[string]interface{}{
 	"cf-warp-tag-id":                nil,
 	"cf-visitor":                    nil,
@@ -84,6 +95,17 @@ var ignoreHeadersMap = map[string]interface{}{
 	"authorization":                 nil,
 	"referer":                       nil,
 	"origin":                        nil,
+}
+
+var gptsInfoInject map[string]interface{}
+
+func init() {
+	f, err := templates.TemplateFs.Open("chatgpt/gpts_info_inject.json")
+	cobra.CheckErr(err)
+	bs, err := io.ReadAll(f)
+	gptsInfoInject = make(map[string]interface{})
+	err = json.Unmarshal(bs, &gptsInfoInject)
+	cobra.CheckErr(err)
 }
 
 func filterHeader(header string) bool {
