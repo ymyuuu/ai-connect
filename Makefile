@@ -112,6 +112,7 @@ $(gz_releases): %.gz : %
 	cp example.json $(BINDIR)/example.json
 	chmod +x $(BINDIR)/$(NAME)-$(basename $@)
 	tar --transform 's/$(NAME)-$(basename $@)/$(NAME)/' -czf $(BINDIR)/$(NAME)-$(basename $@)-$(VERSION).tar.gz -C $(BINDIR) $(NAME)-$(basename $@) example.json
+	rm -f $(BINDIR)/$(NAME)-$(basename $@)
 
 $(zip_releases): %.zip : %
 	cp example.json $(BINDIR)/example.json
