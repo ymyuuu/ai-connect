@@ -8,9 +8,9 @@
 {
   "chatgpt": {
     "mirror": {
-      "address": ":443",
+      "address": ":80",
       "tls": {
-        "enabled": true,
+        "enabled": false,
         "key": "./tls/key.pem",
         "cert": "./tls/cert.pem"
       },
