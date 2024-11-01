@@ -124,7 +124,6 @@ func handleIndex(c echo.Context) error {
 		c.SetCookie(&http.Cookie{
 			Name:    "token",
 			Value:   token,
-			Secure:  true,
 			Expires: time.Now().Add(24 * time.Hour),
 		})
 	}
