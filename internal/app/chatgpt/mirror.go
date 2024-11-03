@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/dhbin/ai-connect/internal/common"
 	"github.com/dhbin/ai-connect/internal/common/code"
+	"github.com/dhbin/ai-connect/internal/common/web"
 	"github.com/dhbin/ai-connect/internal/config"
 	"github.com/dhbin/ai-connect/templates"
 	"github.com/labstack/echo/v4"
@@ -12,7 +13,6 @@ import (
 	"html/template"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -33,13 +33,16 @@ func RunMirror() {
 
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
+	e.Use(RebuildRequestURL)
 
 	e.GET("/", handleIndex)
+	e.GET("/chatgpt/hook.js", returnHookJs)
 	e.GET("/c/*", handleIndex)
 	e.POST("/backend-api/accounts/logout_all", func(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, nil)
 	})
 	e.GET("/gpts", handleGpts)
+	e.Any("/webrtc/*", web.ProxyWebSocket(buildTargetUrl))
 	e.Any("/*", handle)
 
 	if tls.Enabled {
@@ -49,70 +52,6 @@ func RunMirror() {
 		err := e.Start(mirrorConfig.Address)
 		cobra.CheckErr(err)
 
-	}
-}
-
-func buildTargetUrl(sourceUrl string) *url.URL {
-	targetUrl, _ := url.Parse(sourceUrl)
-	// 判断url前缀是否/static，是的话替换host为cdn.oaistatic.com
-	if strings.HasPrefix(targetUrl.Path, "/assets") {
-		targetUrl.Host = "cdn.oaistatic.com"
-	} else if strings.HasPrefix(targetUrl.Path, "/ab") {
-		// 判断url前缀是否/ab，是的话替换host为ab.chatgpt.com
-		targetUrl.Host = "ab.chatgpt.com"
-		// 去除前缀
-		targetUrl.Path = strings.TrimPrefix(targetUrl.Path, "/ab")
-	} else {
-		// 其他情况，替换host为chatgpt.com
-		targetUrl.Host = "chatgpt.com"
-	}
-	return targetUrl
-}
-
-func buildUrl(c echo.Context) *url.URL {
-	u := c.Request().URL
-	// Populate missing fields
-	xForwardProto := c.Request().Header.Get("x-forwarded-proto")
-	if xForwardProto != "" {
-		u.Scheme = xForwardProto
-	} else {
-		if u.Scheme == "" {
-			if c.Request().TLS == nil {
-				u.Scheme = "http"
-			} else {
-				u.Scheme = "https"
-			}
-		}
-	}
-	if u.Host == "" {
-		u.Host = c.Request().Host
-	}
-	if u.Path == "" {
-		u.Path = c.Request().RequestURI
-	}
-	return u
-}
-
-func dealToken(token string) string {
-	if strings.HasPrefix(token, "eyJhbGci") {
-		return token
-	}
-	return config.ChatGptMirror().Tokens[token]
-}
-
-func needAuth(path string) bool {
-	return !strings.HasSuffix(path, ".js") && !strings.HasSuffix(path, ".css") && !strings.HasSuffix(path, ".webp")
-
-}
-
-func bodyNeedHandle(u *url.URL) bool {
-	return strings.HasSuffix(u.Path, ".js") || strings.HasSuffix(u.Path, ".css") || u.Path == "/backend-api/me"
-}
-
-func setIfNotEmpty(target, header http.Header, key string) {
-	v := header.Get(key)
-	if v != "" {
-		target.Set(key, v)
 	}
 }
 
@@ -132,6 +71,14 @@ func handleIndex(c echo.Context) error {
 		"Token":           token,
 	}
 	return c.Render(http.StatusOK, "index.html", data)
+}
+
+func returnHookJs(c echo.Context) error {
+	bs, err := templates.TemplateFs.ReadFile("chatgpt/hook.js")
+	if err != nil {
+		return err
+	}
+	return c.Blob(http.StatusOK, "application/javascript", bs)
 }
 
 func handleGpts(c echo.Context) error {
@@ -165,10 +112,8 @@ func handleGIndex(c echo.Context) error {
 
 func handle(c echo.Context) error {
 
-	u := buildUrl(c)
+	u := c.Request().URL
 	sourceHost := u.Host
-	sourceScheme := u.Scheme
-	sourceUrl := u.String()
 
 	if strings.HasSuffix(u.Path, ".map") {
 		return c.NoContent(http.StatusNotFound)
@@ -179,8 +124,7 @@ func handle(c echo.Context) error {
 	}
 
 	// 构建目标url
-	targetUrl := buildTargetUrl(sourceUrl)
-	targetUrl.Scheme = "https"
+	targetUrl := buildTargetUrl(u)
 
 	// 构建目标headers
 	targetHeaders := make(http.Header)
@@ -299,11 +243,6 @@ func handle(c echo.Context) error {
 			return err
 		}
 		defer common.IgnoreErr(reader.Close)
-		writer, err := code.WarpWriter(c.Response(), contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(writer.Close)
 		bs, err := io.ReadAll(reader)
 		if err != nil {
 			return err
@@ -328,12 +267,17 @@ func handle(c echo.Context) error {
 				}
 			}
 		} else {
+			sourceScheme := u.Scheme
 			body = strings.ReplaceAll(body, "https://chatgpt.com", sourceScheme+"://"+sourceHost)
 			body = strings.ReplaceAll(body, "https://ab.chatgpt.com", sourceScheme+"://"+sourceHost+"/ab")
 			body = strings.ReplaceAll(body, "https://cdn.oaistatic.com", sourceScheme+"://"+sourceHost)
 			body = strings.ReplaceAll(body, "chatgpt.com", sourceHost)
 		}
-
+		writer, err := code.WarpWriter(c.Response(), contentEncoding)
+		if err != nil {
+			return err
+		}
+		defer common.IgnoreErr(writer.Close)
 		_, err = writer.Write([]byte(body))
 		return err
 	}
