@@ -3,6 +3,7 @@ package chatgpt
 import (
 	"github.com/dhbin/ai-connect/internal/common/web"
 	"github.com/labstack/echo/v4"
+	"strings"
 )
 
 func RebuildRequestURL(next echo.HandlerFunc) echo.HandlerFunc {
@@ -14,21 +15,16 @@ func RebuildRequestURL(next echo.HandlerFunc) echo.HandlerFunc {
 			u.Scheme = xForwardProto
 		} else {
 			if u.Scheme == "" {
-				isWebsocket := web.IsWebsocket(c)
 				if c.Request().TLS == nil {
-					if isWebsocket {
-						u.Scheme = "ws"
-					} else {
-						u.Scheme = "http"
-					}
+					u.Scheme = "http"
 				} else {
-					if isWebsocket {
-						u.Scheme = "wss"
-					} else {
-						u.Scheme = "https"
-					}
+					u.Scheme = "https"
 				}
 			}
+		}
+		isWebsocket := web.IsWebsocket(c)
+		if isWebsocket {
+			u.Scheme = strings.ReplaceAll(u.Scheme, "http", "ws")
 		}
 
 		if u.Host == "" {
