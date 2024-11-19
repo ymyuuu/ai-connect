@@ -1,4 +1,4 @@
-package chatgpt
+package middleware
 
 import (
 	"github.com/dhbin/ai-connect/internal/common/web"

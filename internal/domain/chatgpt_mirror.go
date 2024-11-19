@@ -1,14 +1,13 @@
-package chatgpt
+package domain
 
 import (
 	"encoding/json"
 	"github.com/dhbin/ai-connect/templates"
 	"github.com/spf13/cobra"
 	"io"
-	"strings"
 )
 
-type me struct {
+type Me struct {
 	Amr                      []interface{} `json:"amr"`
 	Created                  int           `json:"created"`
 	Email                    string        `json:"email"`
@@ -50,65 +49,18 @@ type me struct {
 	Picture     string      `json:"picture"`
 }
 
-type checkGpts struct {
+type CheckGpts struct {
 	Kind     string `json:"kind"`
 	Referrer string `json:"referrer"`
 }
 
-var ignoreHeadersMap = map[string]interface{}{
-	"cf-warp-tag-id":                nil,
-	"cf-visitor":                    nil,
-	"cf-ray":                        nil,
-	"cf-request-id":                 nil,
-	"cf-worker":                     nil,
-	"cf-access-client-id":           nil,
-	"cf-access-client-device-type":  nil,
-	"cf-access-client-device-model": nil,
-	"cf-access-client-device-name":  nil,
-	"cf-access-client-device-brand": nil,
-	"cf-connecting-ip":              nil,
-	"cf-ipcountry":                  nil,
-	"x-real-ip":                     nil,
-	"x-forwarded-for":               nil,
-	"x-forwarded-proto":             nil,
-	"x-forwarded-port":              nil,
-	"x-forwarded-host":              nil,
-	"x-forwarded-server":            nil,
-	"cdn-loop":                      nil,
-	"remote-host":                   nil,
-	"x-frame-options":               nil,
-	"x-xss-protection":              nil,
-	"x-content-type-options":        nil,
-	"content-security-policy":       nil,
-	"host":                          nil,
-	"cookie":                        nil,
-	"connection":                    nil,
-	"content-length":                nil,
-	"content-encoding":              nil,
-	"x-middleware-prefetch":         nil,
-	"x-nextjs-data":                 nil,
-	"x-forwarded-uri":               nil,
-	"x-forwarded-path":              nil,
-	"x-forwarded-method":            nil,
-	"x-forwarded-protocol":          nil,
-	"x-forwarded-scheme":            nil,
-	"authorization":                 nil,
-	"referer":                       nil,
-	"origin":                        nil,
-}
-
-var gptsInfoInject map[string]interface{}
+var GptsInfoInject map[string]interface{}
 
 func init() {
 	f, err := templates.TemplateFs.Open("chatgpt/gpts_info_inject.json")
 	cobra.CheckErr(err)
 	bs, err := io.ReadAll(f)
-	gptsInfoInject = make(map[string]interface{})
-	err = json.Unmarshal(bs, &gptsInfoInject)
+	GptsInfoInject = make(map[string]interface{})
+	err = json.Unmarshal(bs, &GptsInfoInject)
 	cobra.CheckErr(err)
-}
-
-func filterHeader(header string) bool {
-	_, exists := ignoreHeadersMap[strings.ToLower(header)]
-	return exists
 }
