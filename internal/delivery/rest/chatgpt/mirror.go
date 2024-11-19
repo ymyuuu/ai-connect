@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/dhbin/ai-connect/internal/common"
 	"github.com/dhbin/ai-connect/internal/common/code"
+	"github.com/dhbin/ai-connect/internal/common/web"
 	"github.com/dhbin/ai-connect/internal/domain"
 	"github.com/dhbin/ai-connect/internal/util"
 	"github.com/dhbin/ai-connect/templates"
@@ -16,7 +17,23 @@ import (
 
 var proxyClient = http.Client{}
 
-func HandleIndex(c echo.Context) error {
+type MirrorHandler struct {
+}
+
+func NewMirrorHandler(e *echo.Echo) {
+	m := &MirrorHandler{}
+	e.GET("/", m.HandleIndex)
+	e.GET("/chatgpt/hook.js", m.ReturnHookJs)
+	e.GET("/c/*", m.HandleIndex)
+	e.POST("/backend-api/accounts/logout_all", func(c echo.Context) error {
+		return c.JSON(http.StatusForbidden, nil)
+	})
+	e.GET("/gpts", m.HandleGpts)
+	e.Any("/webrtc/*", web.ProxyWebSocket(util.BuildTargetUrl))
+	e.Any("/*", m.Handle)
+}
+
+func (m *MirrorHandler) HandleIndex(c echo.Context) error {
 	token := "announce"
 	t := c.QueryParam("token")
 	if t != "" {
@@ -34,7 +51,7 @@ func HandleIndex(c echo.Context) error {
 	return c.Render(http.StatusOK, "index.html", data)
 }
 
-func ReturnHookJs(c echo.Context) error {
+func (m *MirrorHandler) ReturnHookJs(c echo.Context) error {
 	bs, err := templates.TemplateFs.ReadFile("chatgpt/hook.js")
 	if err != nil {
 		return err
@@ -42,17 +59,17 @@ func ReturnHookJs(c echo.Context) error {
 	return c.Blob(http.StatusOK, "application/javascript", bs)
 }
 
-func HandleGpts(c echo.Context) error {
+func (m *MirrorHandler) HandleGpts(c echo.Context) error {
 	if c.QueryParam("_data") == "routes/gpts._index" {
 		return c.JSON(http.StatusOK, domain.CheckGpts{
 			Kind:     "store",
 			Referrer: "https://chatgpt.com/",
 		})
 	}
-	return HandleGIndex(c)
+	return m.HandleGIndex(c)
 }
 
-func HandleGIndex(c echo.Context) error {
+func (m *MirrorHandler) HandleGIndex(c echo.Context) error {
 	token := "announce"
 	t := c.QueryParam("token")
 	if t != "" {
@@ -71,7 +88,7 @@ func HandleGIndex(c echo.Context) error {
 	return c.Render(http.StatusOK, "gpts.html", data)
 }
 
-func Handle(c echo.Context) error {
+func (m *MirrorHandler) Handle(c echo.Context) error {
 
 	u := c.Request().URL
 	sourceHost := u.Host
@@ -81,7 +98,7 @@ func Handle(c echo.Context) error {
 	}
 
 	if strings.HasPrefix(u.Path, "/g/") && c.QueryParam("_data") == "" {
-		return HandleGIndex(c)
+		return m.HandleGIndex(c)
 	}
 
 	// 构建目标url
