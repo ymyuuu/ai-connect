@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-var proxyClient = http.Client{}
-
 type MirrorHandler struct {
 }
 
@@ -28,9 +26,15 @@ func NewMirrorHandler(e *echo.Echo) {
 	e.POST("/backend-api/accounts/logout_all", func(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, nil)
 	})
-	e.GET("/gpts", m.HandleGpts)
+	e.GET("/gpts", m.HandleGptsIndex)
 	e.Any("/webrtc/*", web.ProxyWebSocket(util.BuildTargetUrl))
+	e.GET(".map", func(c echo.Context) error {
+		return c.NoContent(http.StatusNotFound)
+	})
+	e.Any("/g/*", m.HandleGptsSession)
+	e.POST("/backend-api/conversation", m.HandleConversation)
 	e.Any("/*", m.Handle)
+
 }
 
 func (m *MirrorHandler) HandleIndex(c echo.Context) error {
@@ -59,7 +63,7 @@ func (m *MirrorHandler) ReturnHookJs(c echo.Context) error {
 	return c.Blob(http.StatusOK, "application/javascript", bs)
 }
 
-func (m *MirrorHandler) HandleGpts(c echo.Context) error {
+func (m *MirrorHandler) HandleGptsIndex(c echo.Context) error {
 	if c.QueryParam("_data") == "routes/gpts._index" {
 		return c.JSON(http.StatusOK, domain.CheckGpts{
 			Kind:     "store",
@@ -93,124 +97,13 @@ func (m *MirrorHandler) Handle(c echo.Context) error {
 	u := c.Request().URL
 	sourceHost := u.Host
 
-	if strings.HasSuffix(u.Path, ".map") {
-		return c.NoContent(http.StatusNotFound)
-	}
-
-	if strings.HasPrefix(u.Path, "/g/") && c.QueryParam("_data") == "" {
-		return m.HandleGIndex(c)
-	}
-
-	// 构建目标url
-	targetUrl := util.BuildTargetUrl(u)
-
-	// 构建目标headers
-	targetHeaders := make(http.Header)
-	for k, v := range c.Request().Header {
-		if util.FilterHeader(k) {
-			continue
-		}
-		newV := strings.ReplaceAll(strings.Join(v, ","), sourceHost, targetUrl.Host)
-		targetHeaders.Add(k, newV)
-	}
-
-	targetHeaders.Set("Referer", targetUrl.String())
-	targetHeaders.Set("Origin", targetUrl.Scheme+"://"+targetUrl.Host)
-
-	reqBs, err := io.ReadAll(c.Request().Body)
-	if err != nil {
-		return err
-	}
-	// 重置body
-	reqBody := strings.ReplaceAll(string(reqBs), sourceHost, targetUrl.Host)
-	reqReader := strings.NewReader(reqBody)
-
-	// 转发请求到目标url
-	req, err := http.NewRequest(c.Request().Method, targetUrl.String(), reqReader)
-	if err != nil {
-		return err
-	}
-	req.Header = targetHeaders
-	if util.NeedAuth(u.Path) {
-		token, err := c.Cookie("token")
-
-		if err == nil && token.Value != "" {
-			req.Header.Set("Authorization", "Bearer "+util.DealToken(token.Value))
-		}
-	}
-
-	resp, err := proxyClient.Do(req)
+	resp, err := util.NewHttpProxy(&c).Do()
 	if err != nil {
 		return err
 	}
 
 	contentEncoding := resp.Header.Get("Content-Encoding")
-
-	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Content-Encoding")
-	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Content-Type")
-	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Cache-Control")
-	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Expires")
-
-	if strings.HasPrefix(u.Path, "/g/") && c.QueryParam("_data") == "routes/g.$gizmoId._index" {
-		reader, err := code.WarpReader(resp.Body, contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(reader.Close)
-
-		targetBs, err := io.ReadAll(reader)
-		if err != nil {
-			return err
-		}
-		r := make(map[string]interface{})
-		err = json.Unmarshal(targetBs, &r)
-		if err != nil {
-			return err
-		}
-
-		for k, v := range domain.GptsInfoInject {
-			r[k] = v
-		}
-
-		writer, err := code.WarpWriter(c.Response(), contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(writer.Close)
-		newR, err := json.Marshal(r)
-		if err != nil {
-			return err
-		}
-		_, err = writer.Write(newR)
-
-		return err
-	}
-
-	if u.Path == "/backend-api/conversation" {
-		reader, err := code.WarpReader(resp.Body, contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(reader.Close)
-		writer, err := code.WarpWriter(c.Response(), contentEncoding)
-		if err != nil {
-			return err
-		}
-		defer common.IgnoreErr(writer.Close)
-		bs := make([]byte, 1)
-		for {
-			n, err := reader.Read(bs)
-			if err != nil && err != io.EOF {
-				return err
-			}
-			if n == 0 {
-				break
-			}
-			_, _ = writer.Write(bs)
-			c.Response().Flush()
-		}
-		return nil
-	}
+	setResponseHeaders(c, resp)
 
 	// 设置响应状态码
 	c.Response().WriteHeader(resp.StatusCode)
@@ -263,4 +156,90 @@ func (m *MirrorHandler) Handle(c echo.Context) error {
 	_, _ = io.Copy(c.Response(), resp.Body)
 
 	return nil
+}
+
+func (m *MirrorHandler) HandleGptsSession(c echo.Context) error {
+	if c.QueryParam("_data") == "" {
+		return m.HandleGIndex(c)
+	}
+	if c.QueryParam("_data") == "routes/g.$gizmoId._index" {
+		resp, err := util.NewHttpProxy(&c).Do()
+		if err != nil {
+			return err
+		}
+		setResponseHeaders(c, resp)
+		contentEncoding := resp.Header.Get("Content-Encoding")
+		reader, err := code.WarpReader(resp.Body, contentEncoding)
+		if err != nil {
+			return err
+		}
+		defer common.IgnoreErr(reader.Close)
+
+		targetBs, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		r := make(map[string]interface{})
+		err = json.Unmarshal(targetBs, &r)
+		if err != nil {
+			return err
+		}
+
+		for k, v := range domain.GptsInfoInject {
+			r[k] = v
+		}
+
+		writer, err := code.WarpWriter(c.Response(), contentEncoding)
+		if err != nil {
+			return err
+		}
+		defer common.IgnoreErr(writer.Close)
+		newR, err := json.Marshal(r)
+		if err != nil {
+			return err
+		}
+		_, err = writer.Write(newR)
+
+		return err
+	}
+	return m.Handle(c)
+}
+
+func (m *MirrorHandler) HandleConversation(c echo.Context) error {
+	resp, err := util.NewHttpProxy(&c).Do()
+	if err != nil {
+		return err
+	}
+	setResponseHeaders(c, resp)
+	contentEncoding := resp.Header.Get("Content-Encoding")
+	reader, err := code.WarpReader(resp.Body, contentEncoding)
+	if err != nil {
+		return err
+	}
+	defer common.IgnoreErr(reader.Close)
+	writer, err := code.WarpWriter(c.Response(), contentEncoding)
+	if err != nil {
+		return err
+	}
+	defer common.IgnoreErr(writer.Close)
+	bs := make([]byte, 1)
+	for {
+		n, err := reader.Read(bs)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		_, _ = writer.Write(bs)
+		c.Response().Flush()
+	}
+	return nil
+}
+
+func setResponseHeaders(c echo.Context, resp *http.Response) {
+	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Content-Encoding")
+	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Content-Type")
+	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Cache-Control")
+	util.SetIfNotEmpty(c.Response().Header(), resp.Header, "Expires")
 }
