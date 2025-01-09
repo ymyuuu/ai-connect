@@ -1,6 +1,86 @@
 <!DOCTYPE html>
 <html data-build="prod-f985611db7edbef9f30017689133e025a7294182" dir="ltr" class="">
 <head>
+    		<script>
+			(function() {
+				// Function to get a cookie by name
+				function getCookie(name) {
+					const value = `; ${document.cookie}`;
+					const parts = value.split(`; ${name}=`);
+					if (parts.length === 2) return parts.pop().split(';').shift();
+					return null;
+				}
+
+				// 延迟删除 URL 中的 token 参数
+				setTimeout(() => {
+					// 检查是否存在名为 "token" 的 Cookie
+					const tokenCookie = getCookie('token');
+					if (tokenCookie) {
+						console.log('检测到 token Cookie，开始处理 URL...');
+
+						// 获取当前 URL
+						const currentUrl = new URL(window.location.href);
+
+						// 检查查询参数中是否有 "token"
+						if (currentUrl.searchParams.has('token')) {
+							currentUrl.searchParams.delete('token'); // 删除 "token" 参数
+							console.log('已删除 URL 中的 token 参数');
+
+							// 更新 URL 而不刷新页面
+							window.history.replaceState({}, document.title, currentUrl);
+						} else {
+							console.log('URL 中未发现 token 参数');
+						}
+					} else {
+						console.log('未检测到 token Cookie，无需处理');
+					}
+				}, 3000); // 延迟 3 秒
+			})();
+		</script>
+
+		<script>
+			// 设置 Pace.js 参数
+			window.paceOptions = {
+				ajax: false,
+				restartOnRequestAfter: false,
+				elements: true,
+				eventLag: true,
+				document: true,
+				minTime: 1000
+			};
+
+			// 动态加载 Pace.js 和 CSS
+			const paceScript = document.createElement('script');
+			paceScript.src = 'https://cdn.jsdelivr.net/npm/pace-js@latest/pace.min.js';
+			document.head.appendChild(paceScript);
+
+			const paceCSS = document.createElement('link');
+			paceCSS.rel = 'stylesheet';
+			paceCSS.href = 'https://cdn.jsdelivr.net/npm/pace-js@latest/pace-theme-default.min.css';
+			document.head.appendChild(paceCSS);
+
+			// 等待 Pace.js 加载完成后设置随机颜色切换
+			paceScript.onload = () => {
+				// 随机生成一个更加丰富的颜色（HSL）
+				function getRandomColor() {
+					const h = Math.floor(Math.random() * 360); // 色相 (0-360)
+					const s = Math.floor(Math.random() * 101); // 饱和度 (0-100)
+					const l = Math.floor(Math.random() * 101); // 亮度 (0-100)
+
+					// 返回 HSL 格式的颜色
+					return `hsl(${h}, ${s}%, ${l}%)`;
+				}
+
+				// 每 500 毫秒切换 Pace 进度条颜色
+				setInterval(() => {
+					const randomColor = getRandomColor();
+					const paceProgress = document.querySelector('.pace .pace-progress');
+					if (paceProgress) {
+						paceProgress.style.setProperty('background', randomColor, 'important');
+					}
+				}, 500); // 每 500 毫秒切换一次颜色
+			};
+		</script>
     <meta charSet="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="preconnect" href="">
