@@ -34,6 +34,7 @@ func NewMirrorHandler(e *echo.Echo) {
 	e.Any("/g/*", m.HandleGptsSession)
 	e.POST("/backend-api/conversation", m.HandleConversation)
 	e.Any("/*", m.Handle)
+
 }
 
 func (m *MirrorHandler) HandleIndex(c echo.Context) error {
@@ -47,10 +48,8 @@ func (m *MirrorHandler) HandleIndex(c echo.Context) error {
 			Expires: time.Now().Add(24 * time.Hour),
 		})
 	}
-
-	// 这里硬编码为 https://example.com
 	data := map[string]string{
-		"StaticPrefixUrl": "https://obbi.ymyuuu.workers.dev",
+		"StaticPrefixUrl": c.Scheme() + "://" + c.Request().Host,
 		"Token":           token,
 	}
 	return c.Render(http.StatusOK, "index.html", data)
@@ -86,16 +85,15 @@ func (m *MirrorHandler) HandleGIndex(c echo.Context) error {
 			Expires: time.Now().Add(24 * time.Hour),
 		})
 	}
-
-	// 同样这里也硬编码
 	data := map[string]string{
-		"StaticPrefixUrl": "https://example.com",
+		"StaticPrefixUrl": c.Scheme() + "://" + c.Request().Host,
 		"Token":           token,
 	}
 	return c.Render(http.StatusOK, "gpts.html", data)
 }
 
 func (m *MirrorHandler) Handle(c echo.Context) error {
+
 	u := c.Request().URL
 	sourceHost := u.Host
 
@@ -133,6 +131,7 @@ func (m *MirrorHandler) Handle(c echo.Context) error {
 				for i := range meJson.Orgs.Data {
 					meJson.Orgs.Data[i].Description = "Personal org for " + meJson.Email
 				}
+
 				newMe, err := json.Marshal(meJson)
 				if err == nil {
 					body = string(newMe)
@@ -145,7 +144,6 @@ func (m *MirrorHandler) Handle(c echo.Context) error {
 			body = strings.ReplaceAll(body, "https://cdn.oaistatic.com", sourceScheme+"://"+sourceHost)
 			body = strings.ReplaceAll(body, "chatgpt.com", sourceHost)
 		}
-
 		writer, err := code.WarpWriter(c.Response(), contentEncoding)
 		if err != nil {
 			return err
